@@ -1,20 +1,19 @@
 namespace WeaponShipping
 {
-    /// <summary>
-    /// Mod configuration. Saved to config.json in the mod folder.
-    /// </summary>
     public class ModConfig
     {
-        /// <summary>Multiplier applied to all weapon sell prices. Default 1.0 = normal prices.</summary>
-        public float PriceMultiplier { get; set; } = 1.0f;
+        // Category toggles
+        public bool EnableWeapons  { get; set; } = true;
+        public bool EnableClothing { get; set; } = true;
+        public bool EnableHats     { get; set; } = true;
+        public bool EnableBoots    { get; set; } = true;
 
-        /// <summary>Minimum gold a weapon can sell for, regardless of price or multiplier.</summary>
-        public int MinimumSellPrice { get; set; } = 100;
+        // Pricing
+        public float PriceMultiplier  { get; set; } = 1.0f;
+        public int   MinimumSellPrice { get; set; } = 100;
+        public bool  UseDamageFormulaForUnknownWeapons { get; set; } = true;
 
-        /// <summary>If true, unknown/modded weapons use the damage-based price formula. If false, they sell for MinimumSellPrice.</summary>
-        public bool UseDamageFormulaForUnknownWeapons { get; set; } = true;
-
-        /// <summary>If true, a message is shown in the SMAPI console listing each weapon sold and its price.</summary>
+        // Misc
         public bool VerboseLogging { get; set; } = false;
     }
 }

@@ -4,21 +4,16 @@ using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewValley;
 using StardewValley.Menus;
+using StardewValley.Objects;
 using StardewValley.Tools;
 
 namespace WeaponShipping
 {
     public class ModEntry : Mod
     {
-        /*********
-        ** Fields
-        *********/
         private ModConfig Config = null!;
 
-        /*********
-        ** Weapon price lookup table
-        ** Sell prices based on ~50% of Adventurer's Guild / shop buy prices.
-        *********/
+        // ~50% of Adventurer's Guild / shop buy prices
         private static readonly Dictionary<string, int> WeaponPrices = new()
         {
             { "Wood Sword",            100  },
@@ -58,28 +53,38 @@ namespace WeaponShipping
             { "Master Slingshot",      750  },
         };
 
-        /*********
-        ** Public methods
-        *********/
+        // Named vanilla boots; unknown boots fall back to the stats formula
+        private static readonly Dictionary<string, int> BootsPrices = new()
+        {
+            { "Sneakers",              100  },
+            { "Work Boots",            250  },
+            { "Leather Boots",         350  },
+            { "Rubber Boots",          200  },
+            { "Thermal Boots",         500  },
+            { "Combat Boots",          750  },
+            { "Emily's Magic Boots",  1000  },
+            { "Space Boots",          1500  },
+            { "Crystal Shoes",         750  },
+            { "Genie Shoes",          1500  },
+            { "Dark Boots",           2000  },
+            { "Mermaid Boots",        1750  },
+            { "Cinderclown Shoes",     750  },
+            { "Tundra Boots",          600  },
+            { "Firewalker Boots",      600  },
+        };
+
         public override void Entry(IModHelper helper)
         {
             this.Config = helper.ReadConfig<ModConfig>();
 
-            helper.Events.GameLoop.DayEnding += this.OnDayEnding;
+            helper.Events.GameLoop.DayEnding  += this.OnDayEnding;
             helper.Events.Display.MenuChanged += this.OnMenuChanged;
             helper.Events.GameLoop.GameLaunched += this.OnGameLaunched;
 
-            this.Monitor.Log("WeaponShipping mod loaded. You can now sell weapons in the shipping bin!", LogLevel.Info);
+            this.Monitor.Log("WeaponShipping mod loaded. Sell weapons, clothing, hats, and boots via the shipping bin!", LogLevel.Info);
         }
 
-        /*********
-        ** Private methods
-        *********/
-
-        /// <summary>
-        /// Register with Generic Mod Config Menu if it's installed.
-        /// </summary>
-        private void OnGameLaunched(object sender, GameLaunchedEventArgs e)
+        private void OnGameLaunched(object? sender, GameLaunchedEventArgs e)
         {
             var configMenu = this.Helper.ModRegistry
                 .GetApi<IGenericModConfigMenuApi>("spacechase0.GenericModConfigMenu");
@@ -93,51 +98,82 @@ namespace WeaponShipping
                 save: () => this.Helper.WriteConfig(this.Config)
             );
 
-            configMenu.AddSectionTitle(
+            // ── What to Sell ──────────────────────────────────────
+            configMenu.AddSectionTitle(mod: this.ModManifest, text: () => "What to Sell");
+
+            configMenu.AddBoolOption(
                 mod: this.ModManifest,
-                text: () => "Weapon Shipping"
+                name: () => "Enable Weapons",
+                tooltip: () => "Allow melee weapons and slingshots to be sold via the shipping bin.",
+                getValue: () => this.Config.EnableWeapons,
+                setValue: value => this.Config.EnableWeapons = value
             );
+            configMenu.AddBoolOption(
+                mod: this.ModManifest,
+                name: () => "Enable Clothing",
+                tooltip: () => "Allow clothing (shirts, pants) to be sold via the shipping bin.",
+                getValue: () => this.Config.EnableClothing,
+                setValue: value => this.Config.EnableClothing = value
+            );
+            configMenu.AddBoolOption(
+                mod: this.ModManifest,
+                name: () => "Enable Hats",
+                tooltip: () => "Allow hats to be sold via the shipping bin.",
+                getValue: () => this.Config.EnableHats,
+                setValue: value => this.Config.EnableHats = value
+            );
+            configMenu.AddBoolOption(
+                mod: this.ModManifest,
+                name: () => "Enable Boots",
+                tooltip: () => "Allow boots to be sold via the shipping bin.",
+                getValue: () => this.Config.EnableBoots,
+                setValue: value => this.Config.EnableBoots = value
+            );
+
+            // ── Pricing ───────────────────────────────────────────
+            configMenu.AddSectionTitle(mod: this.ModManifest, text: () => "Pricing");
 
             configMenu.AddNumberOption(
                 mod: this.ModManifest,
                 name: () => "Price Multiplier",
-                tooltip: () => "Multiplies all weapon sell prices. 1.0 = normal, 2.0 = double, 0.5 = half.",
+                tooltip: () => "Multiplies all sell prices. 1.0 = normal, 2.0 = double, 0.5 = half.",
                 getValue: () => this.Config.PriceMultiplier,
                 setValue: value => this.Config.PriceMultiplier = value,
                 min: 0.1f,
                 max: 10f,
                 interval: 0.1f
             );
-
             configMenu.AddNumberOption(
                 mod: this.ModManifest,
                 name: () => "Minimum Sell Price",
-                tooltip: () => "No weapon will sell for less than this amount (before the multiplier).",
+                tooltip: () => "No item will sell for less than this amount (before the multiplier).",
                 getValue: () => (float)this.Config.MinimumSellPrice,
                 setValue: value => this.Config.MinimumSellPrice = (int)value,
                 min: 0f,
                 max: 10000f,
                 interval: 50f
             );
-
             configMenu.AddBoolOption(
                 mod: this.ModManifest,
                 name: () => "Damage Formula for Unknown Weapons",
-                tooltip: () => "If on, weapons not in the price table (e.g. from mods) use a damage-based formula. If off, they sell for the minimum price.",
+                tooltip: () => "If on, weapons not in the price table use a damage-based formula. If off, they sell for the minimum price.",
                 getValue: () => this.Config.UseDamageFormulaForUnknownWeapons,
                 setValue: value => this.Config.UseDamageFormulaForUnknownWeapons = value
             );
 
+            // ── Other ─────────────────────────────────────────────
+            configMenu.AddSectionTitle(mod: this.ModManifest, text: () => "Other");
+
             configMenu.AddBoolOption(
                 mod: this.ModManifest,
                 name: () => "Verbose Logging",
-                tooltip: () => "Print each weapon sold and its price to the SMAPI console.",
+                tooltip: () => "Print each item sold and its price to the SMAPI console.",
                 getValue: () => this.Config.VerboseLogging,
                 setValue: value => this.Config.VerboseLogging = value
             );
         }
 
-        private void OnMenuChanged(object sender, MenuChangedEventArgs e)
+        private void OnMenuChanged(object? sender, MenuChangedEventArgs e)
         {
             if (e.NewMenu is ItemGrabMenu menu)
             {
@@ -146,7 +182,7 @@ namespace WeaponShipping
             }
         }
 
-        private bool IsShippingBinMenu(ItemGrabMenu menu)
+        private static bool IsShippingBinMenu(ItemGrabMenu menu)
         {
             return menu.source == ItemGrabMenu.source_none
                 && menu.reverseGrab
@@ -157,89 +193,122 @@ namespace WeaponShipping
         {
             var original = menu.inventory.highlightMethod;
             menu.inventory.highlightMethod = item =>
-            {
-                if (item is MeleeWeapon || item is Slingshot)
-                    return true;
-                return original(item);
-            };
+                IsItemShippable(item) || original(item);
 
             var originalAccept = menu.ItemsToGrabMenu?.highlightMethod;
             if (originalAccept != null && menu.ItemsToGrabMenu != null)
             {
                 menu.ItemsToGrabMenu.highlightMethod = item =>
-                {
-                    if (item is MeleeWeapon || item is Slingshot)
-                        return true;
-                    return originalAccept(item);
-                };
+                    IsItemShippable(item) || originalAccept(item);
             }
         }
 
-        private void OnDayEnding(object sender, DayEndingEventArgs e)
+        private bool IsItemShippable(Item item) =>
+            ((item is MeleeWeapon || item is Slingshot) && this.Config.EnableWeapons)
+            || (item is Clothing && this.Config.EnableClothing)
+            || (item is Hat      && this.Config.EnableHats)
+            || (item is Boots    && this.Config.EnableBoots);
+
+        private void OnDayEnding(object? sender, DayEndingEventArgs e)
         {
             if (!Context.IsWorldReady)
                 return;
 
-            Farm farm = Game1.getFarm();
+            Farm? farm = Game1.getFarm();
             if (farm == null)
                 return;
 
-            var weaponsToSell = farm.getShippingBin(Game1.player)
-                .Where(item => item is MeleeWeapon || item is Slingshot)
-                .ToList();
+            var bin = farm.getShippingBin(Game1.player);
+            var itemsToSell = bin.Where(IsItemShippable).ToList();
 
-            if (weaponsToSell.Count == 0)
+            if (itemsToSell.Count == 0)
                 return;
 
             int totalEarned = 0;
+            var summary = new Dictionary<string, (int Count, int Gold)>();
 
-            foreach (var weapon in weaponsToSell)
+            foreach (var item in itemsToSell)
             {
-                int sellPrice = GetWeaponSellPrice(weapon);
+                int sellPrice = GetSellPrice(item);
                 totalEarned += sellPrice;
+                bin.Remove(item);
 
-                farm.getShippingBin(Game1.player).Remove(weapon);
+                string category = GetCategoryName(item);
+                summary.TryGetValue(category, out var stats);
+                summary[category] = (stats.Count + 1, stats.Gold + sellPrice);
 
                 if (this.Config.VerboseLogging)
-                    this.Monitor.Log($"Sold '{weapon.DisplayName}' for {sellPrice}g.", LogLevel.Info);
+                    this.Monitor.Log($"Sold '{item.DisplayName}' ({category}) for {sellPrice}g.", LogLevel.Info);
             }
 
             if (totalEarned > 0)
             {
                 Game1.player.Money += totalEarned;
-                this.Monitor.Log($"Weapon sales: +{totalEarned}g ({weaponsToSell.Count} weapon{(weaponsToSell.Count == 1 ? "" : "s")}).", LogLevel.Info);
+
+                var parts = summary.Select(kv => $"{kv.Key}: {kv.Value.Count} sold for {kv.Value.Gold}g");
+                this.Monitor.Log(
+                    $"Shipping sales — {string.Join(", ", parts)}. Total: +{totalEarned}g.",
+                    LogLevel.Info);
             }
         }
 
-        private int GetWeaponSellPrice(Item item)
+        private static string GetCategoryName(Item item) => item switch
         {
-            int basePrice;
+            MeleeWeapon _ => "Weapons",
+            Slingshot _   => "Weapons",
+            Clothing _    => "Clothing",
+            Hat _         => "Hats",
+            Boots _       => "Boots",
+            _             => "Other"
+        };
 
-            if (WeaponPrices.TryGetValue(item.Name, out int knownPrice))
+        private int GetSellPrice(Item item)
+        {
+            int basePrice = item switch
             {
-                basePrice = knownPrice;
-            }
-            else if (this.Config.UseDamageFormulaForUnknownWeapons && item is MeleeWeapon weapon)
-            {
-                int avgDamage = (weapon.minDamage.Value + weapon.maxDamage.Value) / 2;
-                basePrice = (int)(avgDamage * avgDamage * 0.8f) + avgDamage * 15;
-            }
-            else if (item is Slingshot sling)
-            {
-                basePrice = sling.upgradeLevel.Value switch
-                {
-                    0 => 200,
-                    1 => 750,
-                    _ => 1500
-                };
-            }
-            else
-            {
-                basePrice = 0;
-            }
+                MeleeWeapon w => ComputeWeaponBasePrice(w),
+                Slingshot s   => ComputeSlingshotBasePrice(s),
+                Clothing _    => 250,
+                Hat _         => 500,
+                Boots b       => ComputeBootsBasePrice(b),
+                _             => 0
+            };
 
             basePrice = System.Math.Max(basePrice, this.Config.MinimumSellPrice);
             return (int)(basePrice * this.Config.PriceMultiplier);
+        }
+
+        private int ComputeWeaponBasePrice(MeleeWeapon weapon)
+        {
+            if (WeaponPrices.TryGetValue(weapon.Name, out int knownPrice))
+                return knownPrice;
+
+            if (this.Config.UseDamageFormulaForUnknownWeapons)
+            {
+                int avgDamage = (weapon.minDamage.Value + weapon.maxDamage.Value) / 2;
+                return (int)(avgDamage * avgDamage * 0.8f) + avgDamage * 15;
+            }
+
+            return 0;
+        }
+
+        private static int ComputeSlingshotBasePrice(Slingshot sling) =>
+            sling.upgradeLevel.Value switch
+            {
+                0 => 200,
+                1 => 750,
+                _ => 1500
+            };
+
+        private static int ComputeBootsBasePrice(Boots boots)
+        {
+            if (BootsPrices.TryGetValue(boots.Name, out int knownPrice))
+                return knownPrice;
+
+            // Unknown boots: price by defense and immunity stats
+            int defense  = boots.defenseBonus.Value;
+            int immunity = boots.immunityBonus.Value;
+            return defense * 200 + immunity * 150;
         }
     }
 }

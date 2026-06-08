@@ -1,6 +1,6 @@
 # Weapon Shipping — Stardew Valley SMAPI Mod
 
-Allows you to sell **any weapon** (swords, clubs, daggers, slingshots) by dropping them into the shipping bin. Their sell value is added to your daily earnings just like any other shipped item.
+Allows you to sell **weapons, clothing, hats, and boots** by dropping them into the shipping bin. Their sell value is added to your daily earnings just like any other shipped item.
 
 ---
 
@@ -32,16 +32,52 @@ Allows you to sell **any weapon** (swords, clubs, daggers, slingshots) by droppi
 ## How to Use
 
 1. Open your shipping bin (the box near the farmhouse).
-2. Drag any weapon from your inventory into the bin.
-3. Go to sleep. The weapon's value will appear in your earnings summary the next morning.
+2. Drag any weapon, clothing item, hat, or pair of boots from your inventory into the bin.
+3. Go to sleep. The items' value will appear in your earnings summary the next morning.
 
-### Weapon Sell Prices
+The SMAPI console will also show a per-category breakdown, e.g.:
+```
+Shipping sales — Weapons: 2 sold for 3000g, Hats: 1 sold for 500g. Total: +3500g.
+```
 
-Weapons in Stardew Valley don't have official sell prices in the vanilla game data. This mod uses the following logic:
+---
 
-- If the game already defines a sell price → uses that directly.
-- Otherwise, it estimates: **(minDamage + maxDamage) / 2 × 10**, with a minimum of **50g**.
-- Slingshots sell for **50g / 150g / 300g** depending on upgrade level.
+## Sell Prices
+
+None of these item types have official sell prices in vanilla Stardew Valley. This mod uses the following logic for each category:
+
+### Weapons
+- Known weapons use a built-in price table (~50% of Adventurer's Guild buy price). Examples: Wood Sword = 100g, Galaxy Sword = 15,000g, Infinity Blade = 30,000g.
+- Unknown/modded melee weapons (if "Damage Formula for Unknown Weapons" is enabled) are estimated: **(avgDamage² × 0.8) + avgDamage × 15**, where avgDamage = `(minDamage + maxDamage) / 2`.
+- Slingshots: **200g / 750g / 1500g** by upgrade level.
+
+### Boots
+- Known vanilla boots use a built-in price table (e.g. Sneakers = 100g, Dark Boots = 2,000g).
+- Unknown boots use a stats formula: **defense × 200 + immunity × 150**.
+
+### Clothing & Hats
+- Clothing (shirts, pants) sells for a flat **250g**.
+- Hats sell for a flat **500g** (half the Hat Mouse price).
+
+### All categories
+- Every price is floored at the configurable **Minimum Sell Price** (default 100g) and then scaled by the **Price Multiplier** (default 1.0).
+
+---
+
+## Configuration
+
+If you have [Generic Mod Config Menu](https://www.nexusmods.com/stardewvalley/mods/5098) installed, all options are available in-game under the mod's settings page. Otherwise, edit `config.json` in the mod folder.
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Enable Weapons | `true` | Sell melee weapons and slingshots via the bin |
+| Enable Clothing | `true` | Sell clothing (shirts, pants) via the bin |
+| Enable Hats | `true` | Sell hats via the bin |
+| Enable Boots | `true` | Sell boots via the bin |
+| Price Multiplier | `1.0` | Scale all sell prices (0.1–10.0) |
+| Minimum Sell Price | `100` | Price floor before the multiplier is applied |
+| Damage Formula for Unknown Weapons | `true` | Use damage stats to price unlisted weapons |
+| Verbose Logging | `false` | Log each individual item sold to the SMAPI console |
 
 ---
 
@@ -78,17 +114,34 @@ Weapons in Stardew Valley don't have official sell prices in the vanilla game da
 4. Find the output in `bin/Release/net6.0/`.
 5. Copy `WeaponShipping.dll` and `manifest.json` into a `WeaponShipping` folder inside your `Mods` directory.
 
-### Optional: Auto-deploy on build
-
-Uncomment the `<Target Name="DeployMod">` block in the `.csproj` to automatically copy the mod files to your Mods folder every time you build.
+The `.csproj` includes a `DeployMod` target that automatically copies the built DLL and manifest to your `Mods` folder on every build.
 
 ---
 
 ## Compatibility
 
-- ✅ Works with multiplayer (each player's shipped weapons are credited to them individually).
+- ✅ Works with multiplayer (each player's shipped items are credited to them individually).
 - ✅ Compatible with Content Patcher and most other SMAPI mods.
+- ✅ Modded weapons not in the price table are priced via the damage formula.
 - ⚠️ May conflict with mods that heavily rewrite the shipping bin menu.
+
+---
+
+## Changelog
+
+### 1.1.0
+- Added support for selling **clothing**, **hats**, and **boots** via the shipping bin.
+- Added per-category config toggles: Enable Weapons, Enable Clothing, Enable Hats, Enable Boots (all on by default).
+- Added a boots price table (15 vanilla entries) with a stats-based formula fallback (`defense × 200 + immunity × 150`).
+- End-of-day SMAPI log now shows a per-category breakdown (e.g. `Weapons: 2 sold for 3000g, Hats: 1 sold for 500g`).
+- GMCM settings page reorganised into three sections: **What to Sell**, **Pricing**, **Other**.
+- Added `.gitignore` for `bin/` and `obj/` build artifacts.
+
+### 1.0.0
+- Initial release: sell melee weapons and slingshots via the shipping bin.
+- Hardcoded price table for all vanilla weapons (~50% of Adventurer's Guild price).
+- Damage-based formula for unknown/modded weapons.
+- GMCM support for Price Multiplier, Minimum Sell Price, damage formula toggle, and verbose logging.
 
 ---
 
