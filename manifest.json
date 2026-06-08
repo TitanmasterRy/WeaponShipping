@@ -1,0 +1,10 @@
+{
+  "Name": "Weapon Shipping",
+  "Author": "YourName",
+  "Version": "1.0.0",
+  "Description": "Allows you to sell weapons by placing them in the shipping bin. Their gold value is added to your daily earnings.",
+  "UniqueID": "YourName.WeaponShipping",
+  "EntryDll": "WeaponShipping.dll",
+  "MinimumApiVersion": "3.18.0",
+  "UpdateKeys": []
+}

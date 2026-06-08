@@ -1,0 +1,12 @@
+C:\Users\Rylen\Desktop\WeaponShipping\bin\Debug\net6.0\WeaponShipping.deps.json
+C:\Users\Rylen\Desktop\WeaponShipping\bin\Debug\net6.0\WeaponShipping.dll
+C:\Users\Rylen\Desktop\WeaponShipping\bin\Debug\net6.0\WeaponShipping.pdb
+C:\Users\Rylen\Desktop\WeaponShipping\obj\Debug\net6.0\WeaponShipping.csproj.AssemblyReference.cache
+C:\Users\Rylen\Desktop\WeaponShipping\obj\Debug\net6.0\WeaponShipping.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Rylen\Desktop\WeaponShipping\obj\Debug\net6.0\WeaponShipping.AssemblyInfoInputs.cache
+C:\Users\Rylen\Desktop\WeaponShipping\obj\Debug\net6.0\WeaponShipping.AssemblyInfo.cs
+C:\Users\Rylen\Desktop\WeaponShipping\obj\Debug\net6.0\WeaponShipping.csproj.CoreCompileInputs.cache
+C:\Users\Rylen\Desktop\WeaponShipping\obj\Debug\net6.0\WeaponShipping.dll
+C:\Users\Rylen\Desktop\WeaponShipping\obj\Debug\net6.0\refint\WeaponShipping.dll
+C:\Users\Rylen\Desktop\WeaponShipping\obj\Debug\net6.0\WeaponShipping.pdb
+C:\Users\Rylen\Desktop\WeaponShipping\obj\Debug\net6.0\ref\WeaponShipping.dll
