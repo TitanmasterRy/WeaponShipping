@@ -77,7 +77,11 @@ If you have [Generic Mod Config Menu](https://www.nexusmods.com/stardewvalley/mo
 | Price Multiplier | `1.0` | Scale all sell prices (0.1–10.0) |
 | Minimum Sell Price | `100` | Price floor before the multiplier is applied |
 | Damage Formula for Unknown Weapons | `true` | Use damage stats to price unlisted weapons |
+| Enable Skillful Clothes Integration | `true` | Boost clothing prices by their Skillful Clothes Revamp effects (only shown when that mod is installed) |
+| Show Bin Contents HUD | `true` | Small farm overlay showing how much sellable gear is in the bin |
 | Verbose Logging | `false` | Log each individual item sold to the SMAPI console |
+
+Options are grouped in GMCM under three headers: **Categories**, **Skillful Clothes Integration** (only when that mod is installed), and **Display**.
 
 ---
 
@@ -128,6 +132,12 @@ The `.csproj` includes a `DeployMod` target that automatically copies the built 
 ---
 
 ## Changelog
+
+### 1.2.0
+- Sold weapons and gear now appear in the vanilla end-of-day shipping summary, folded into the existing **Misc** category alongside other shipped items (only items actually sold that night are shown).
+- Added optional **Skillful Clothes Revamp** integration: when that mod is installed, clothing sold through the bin is worth more based on the strength and rarity of its effects. Fully optional — does nothing if the mod isn't present.
+- Added a small **Bin Contents HUD** in the bottom-right corner while on the farm, showing the count and estimated value of sellable gear waiting in the shipping bin.
+- Reorganised GMCM into three sections — **Categories**, **Skillful Clothes Integration**, and **Display** — with a tooltip on every option.
 
 ### 1.1.0
 - Added support for selling **clothing**, **hats**, and **boots** via the shipping bin.

@@ -1,5 +1,10 @@
+using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
+using System.Reflection;
+using System.Text.RegularExpressions;
+using Microsoft.Xna.Framework;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewValley;
@@ -12,6 +17,15 @@ namespace WeaponShipping
     public class ModEntry : Mod
     {
         private ModConfig Config = null!;
+
+        // Skillful Clothes Revamp integration
+        private const string SkillfulClothesModId = "w8AwA8w.SkillfulClothesRevamp";
+        private bool skillfulClothesLoaded;
+        private const int SkillfulClothesValuePerPoint = 100;
+
+        // Items sold through the bin tonight, recorded so they can be shown in the
+        // vanilla end-of-day shipping summary under the "Misc" (other) category.
+        private readonly List<KeyValuePair<Item, int>> lastSoldItems = new();
 
         // ~50% of Adventurer's Guild / shop buy prices
         private static readonly Dictionary<string, int> WeaponPrices = new()
@@ -77,8 +91,11 @@ namespace WeaponShipping
         {
             this.Config = helper.ReadConfig<ModConfig>();
 
+            this.skillfulClothesLoaded = helper.ModRegistry.IsLoaded(SkillfulClothesModId);
+
             helper.Events.GameLoop.DayEnding  += this.OnDayEnding;
             helper.Events.Display.MenuChanged += this.OnMenuChanged;
+            helper.Events.Display.RenderedHud += this.OnRenderedHud;
             helper.Events.GameLoop.GameLaunched += this.OnGameLaunched;
 
             this.Monitor.Log("WeaponShipping mod loaded. Sell weapons, clothing, hats, and boots via the shipping bin!", LogLevel.Info);
@@ -98,8 +115,8 @@ namespace WeaponShipping
                 save: () => this.Helper.WriteConfig(this.Config)
             );
 
-            // ── What to Sell ──────────────────────────────────────
-            configMenu.AddSectionTitle(mod: this.ModManifest, text: () => "What to Sell");
+            // ── Categories ────────────────────────────────────────
+            configMenu.AddSectionTitle(mod: this.ModManifest, text: () => "Categories");
 
             configMenu.AddBoolOption(
                 mod: this.ModManifest,
@@ -129,10 +146,6 @@ namespace WeaponShipping
                 getValue: () => this.Config.EnableBoots,
                 setValue: value => this.Config.EnableBoots = value
             );
-
-            // ── Pricing ───────────────────────────────────────────
-            configMenu.AddSectionTitle(mod: this.ModManifest, text: () => "Pricing");
-
             configMenu.AddNumberOption(
                 mod: this.ModManifest,
                 name: () => "Price Multiplier",
@@ -161,9 +174,31 @@ namespace WeaponShipping
                 setValue: value => this.Config.UseDamageFormulaForUnknownWeapons = value
             );
 
-            // ── Other ─────────────────────────────────────────────
-            configMenu.AddSectionTitle(mod: this.ModManifest, text: () => "Other");
+            // ── Skillful Clothes Integration ──────────────────────
+            // Only surfaced when Skillful Clothes Revamp is actually installed.
+            if (this.skillfulClothesLoaded)
+            {
+                configMenu.AddSectionTitle(mod: this.ModManifest, text: () => "Skillful Clothes Integration");
 
+                configMenu.AddBoolOption(
+                    mod: this.ModManifest,
+                    name: () => "Enable Skillful Clothes Integration",
+                    tooltip: () => "Boost the sell price of clothing based on the strength and rarity of its Skillful Clothes Revamp effects.",
+                    getValue: () => this.Config.EnableSkillfulClothesIntegration,
+                    setValue: value => this.Config.EnableSkillfulClothesIntegration = value
+                );
+            }
+
+            // ── Display ───────────────────────────────────────────
+            configMenu.AddSectionTitle(mod: this.ModManifest, text: () => "Display");
+
+            configMenu.AddBoolOption(
+                mod: this.ModManifest,
+                name: () => "Show Bin Contents HUD",
+                tooltip: () => "Show a small overlay on the farm with the number and estimated value of sellable gear waiting in the shipping bin.",
+                getValue: () => this.Config.ShowBinContentsHUD,
+                setValue: value => this.Config.ShowBinContentsHUD = value
+            );
             configMenu.AddBoolOption(
                 mod: this.ModManifest,
                 name: () => "Verbose Logging",
@@ -179,6 +214,10 @@ namespace WeaponShipping
             {
                 if (menu.context is Farm || IsShippingBinMenu(menu))
                     PatchShippingMenu(menu);
+            }
+            else if (e.NewMenu is ShippingMenu shippingMenu)
+            {
+                InjectSoldItemsIntoSummary(shippingMenu);
             }
         }
 
@@ -221,6 +260,10 @@ namespace WeaponShipping
             var bin = farm.getShippingBin(Game1.player);
             var itemsToSell = bin.Where(IsItemShippable).ToList();
 
+            // Reset the record of what was sold so the shipping summary only
+            // ever shows items sold this particular night.
+            this.lastSoldItems.Clear();
+
             if (itemsToSell.Count == 0)
                 return;
 
@@ -232,6 +275,8 @@ namespace WeaponShipping
                 int sellPrice = GetSellPrice(item);
                 totalEarned += sellPrice;
                 bin.Remove(item);
+
+                this.lastSoldItems.Add(new KeyValuePair<Item, int>(item, sellPrice));
 
                 string category = GetCategoryName(item);
                 summary.TryGetValue(category, out var stats);
@@ -268,7 +313,7 @@ namespace WeaponShipping
             {
                 MeleeWeapon w => ComputeWeaponBasePrice(w),
                 Slingshot s   => ComputeSlingshotBasePrice(s),
-                Clothing _    => 250,
+                Clothing c    => 250 + ComputeSkillfulClothesBonus(c),
                 Hat _         => 500,
                 Boots b       => ComputeBootsBasePrice(b),
                 _             => 0
@@ -309,6 +354,133 @@ namespace WeaponShipping
             int defense  = boots.defenseBonus.Value;
             int immunity = boots.immunityBonus.Value;
             return defense * 200 + immunity * 150;
+        }
+
+        // ── Skillful Clothes Revamp integration ───────────────────
+        // Effects are stored on the clothing item's modData by Skillful Clothes
+        // Revamp. We read every entry that belongs to that mod and value the item
+        // by the combined magnitude of its numeric effects plus how many distinct
+        // effects it carries, so stronger and rarer pieces fetch more gold.
+        private int ComputeSkillfulClothesBonus(Clothing clothing)
+        {
+            if (!this.skillfulClothesLoaded || !this.Config.EnableSkillfulClothesIntegration)
+                return 0;
+
+            double strength = 0;
+            int effectCount = 0;
+
+            foreach (string key in clothing.modData.Keys)
+            {
+                if (key.IndexOf("SkillfulClothesRevamp", StringComparison.OrdinalIgnoreCase) < 0
+                    && !key.StartsWith("w8AwA8w", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                effectCount++;
+
+                string raw = clothing.modData[key] ?? string.Empty;
+                foreach (Match match in Regex.Matches(raw, @"-?\d+(\.\d+)?"))
+                {
+                    if (double.TryParse(match.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out double value))
+                        strength += System.Math.Abs(value);
+                }
+            }
+
+            if (effectCount == 0)
+                return 0;
+
+            return (int)((strength + effectCount) * SkillfulClothesValuePerPoint);
+        }
+
+        // ── Vanilla end-of-day shipping summary integration ───────
+        // The items we sold tonight were removed from the bin before vanilla could
+        // process them, so they never reach the summary on their own. Re-insert
+        // them into the existing "Misc" (other) category exactly the way the game
+        // tracks any other shipped item, so the screen still looks completely vanilla.
+        private void InjectSoldItemsIntoSummary(ShippingMenu menu)
+        {
+            if (this.lastSoldItems.Count == 0)
+                return;
+
+            try
+            {
+                const BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance;
+                Type type = typeof(ShippingMenu);
+
+                var categoryItems     = (List<List<Item>>)type.GetField("categoryItems", flags)!.GetValue(menu)!;
+                var categoryTotals    = (List<int>)type.GetField("categoryTotals", flags)!.GetValue(menu)!;
+                var itemValues        = (Dictionary<Item, int>)type.GetField("itemValues", flags)!.GetValue(menu)!;
+                var singleItemValues  = (Dictionary<Item, int>)type.GetField("singleItemValues", flags)!.GetValue(menu)!;
+
+                int other = ShippingMenu.other_category;
+                int total = ShippingMenu.total_category;
+
+                foreach (var sold in this.lastSoldItems)
+                {
+                    Item item = sold.Key;
+                    int price = sold.Value;
+
+                    categoryItems[other].Add(item);
+                    categoryTotals[other] += price;
+                    categoryTotals[total] += price;
+                    itemValues[item] = price;
+                    singleItemValues[item] = price;
+                }
+            }
+            catch (Exception ex)
+            {
+                this.Monitor.Log($"Could not add sold gear to the shipping summary: {ex.Message}", LogLevel.Trace);
+            }
+            finally
+            {
+                this.lastSoldItems.Clear();
+            }
+        }
+
+        // ── Bin contents HUD ──────────────────────────────────────
+        private void OnRenderedHud(object? sender, RenderedHudEventArgs e)
+        {
+            if (!this.Config.ShowBinContentsHUD || !Context.IsWorldReady)
+                return;
+
+            if (Game1.currentLocation is not Farm)
+                return;
+
+            Farm? farm = Game1.getFarm();
+            if (farm == null)
+                return;
+
+            int count = 0;
+            int value = 0;
+            foreach (var item in farm.getShippingBin(Game1.player))
+            {
+                if (item != null && IsItemShippable(item))
+                {
+                    count++;
+                    value += GetSellPrice(item);
+                }
+            }
+
+            if (count == 0)
+                return;
+
+            var font = Game1.smallFont;
+            string line1 = $"Bin: {count} gear";
+            string line2 = $"~{value}g";
+
+            Vector2 size1 = font.MeasureString(line1);
+            Vector2 size2 = font.MeasureString(line2);
+
+            int boxWidth  = (int)System.Math.Max(size1.X, size2.X) + 32;
+            int boxHeight = (int)(size1.Y + size2.Y) + 24;
+            int x = Game1.uiViewport.Width  - boxWidth  - 16;
+            int y = Game1.uiViewport.Height - boxHeight - 16;
+
+            IClickableMenu.drawTextureBox(
+                e.SpriteBatch, Game1.menuTexture, new Rectangle(0, 256, 60, 60),
+                x, y, boxWidth, boxHeight, Color.White, 1f, false);
+
+            Utility.drawTextWithShadow(e.SpriteBatch, line1, font, new Vector2(x + 16, y + 12), Game1.textColor);
+            Utility.drawTextWithShadow(e.SpriteBatch, line2, font, new Vector2(x + 16, y + 12 + size1.Y), Game1.textColor);
         }
     }
 }

@@ -29,6 +29,10 @@
       <HintPath>$(GamePath)\Netcode.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="xTile">
+      <HintPath>$(GamePath)\xTile.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="SMAPI.Toolkit.CoreInterfaces">
       <HintPath>$(GamePath)\smapi-internal\SMAPI.Toolkit.CoreInterfaces.dll</HintPath>
       <Private>false</Private>

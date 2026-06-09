@@ -13,6 +13,12 @@ namespace WeaponShipping
         public int   MinimumSellPrice { get; set; } = 100;
         public bool  UseDamageFormulaForUnknownWeapons { get; set; } = true;
 
+        // Skillful Clothes Revamp integration
+        public bool EnableSkillfulClothesIntegration { get; set; } = true;
+
+        // Display
+        public bool ShowBinContentsHUD { get; set; } = true;
+
         // Misc
         public bool VerboseLogging { get; set; } = false;
     }
