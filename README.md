@@ -33,11 +33,11 @@ Allows you to sell **weapons, clothing, hats, and boots** by dropping them into 
 
 1. Open your shipping bin (the box near the farmhouse).
 2. Drag any weapon, clothing item, hat, or pair of boots from your inventory into the bin.
-3. Go to sleep. The items' value will appear in your earnings summary the next morning.
+3. Go to sleep. The items appear in the vanilla end-of-day shipping summary under the **Misc** category, priced with this mod's values, and the gold is added to your earnings.
 
 The SMAPI console will also show a per-category breakdown, e.g.:
 ```
-Shipping sales — Weapons: 2 sold for 3000g, Hats: 1 sold for 500g. Total: +3500g.
+Shipping sales — Weapons: 2 sold for 3000g, Hats: 1 sold for 500g. Bonus over vanilla value: +3500g.
 ```
 
 ---

@@ -8,6 +8,7 @@ using Microsoft.Xna.Framework;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewValley;
+using StardewValley.BellsAndWhistles;
 using StardewValley.Menus;
 using StardewValley.Objects;
 using StardewValley.Tools;
@@ -22,10 +23,6 @@ namespace WeaponShipping
         private const string SkillfulClothesModId = "w8AwA8w.SkillfulClothesRevamp";
         private bool skillfulClothesLoaded;
         private const int SkillfulClothesValuePerPoint = 100;
-
-        // Items sold through the bin tonight, recorded so they can be shown in the
-        // vanilla end-of-day shipping summary under the "Misc" (other) category.
-        private readonly List<KeyValuePair<Item, int>> lastSoldItems = new();
 
         // ~50% of Adventurer's Guild / shop buy prices
         private static readonly Dictionary<string, int> WeaponPrices = new()
@@ -93,7 +90,6 @@ namespace WeaponShipping
 
             this.skillfulClothesLoaded = helper.ModRegistry.IsLoaded(SkillfulClothesModId);
 
-            helper.Events.GameLoop.DayEnding  += this.OnDayEnding;
             helper.Events.Display.MenuChanged += this.OnMenuChanged;
             helper.Events.Display.RenderedHud += this.OnRenderedHud;
             helper.Events.GameLoop.GameLaunched += this.OnGameLaunched;
@@ -217,7 +213,7 @@ namespace WeaponShipping
             }
             else if (e.NewMenu is ShippingMenu shippingMenu)
             {
-                InjectSoldItemsIntoSummary(shippingMenu);
+                AdjustShippingSummary(shippingMenu);
             }
         }
 
@@ -247,55 +243,6 @@ namespace WeaponShipping
             || (item is Clothing && this.Config.EnableClothing)
             || (item is Hat      && this.Config.EnableHats)
             || (item is Boots    && this.Config.EnableBoots);
-
-        private void OnDayEnding(object? sender, DayEndingEventArgs e)
-        {
-            if (!Context.IsWorldReady)
-                return;
-
-            Farm? farm = Game1.getFarm();
-            if (farm == null)
-                return;
-
-            var bin = farm.getShippingBin(Game1.player);
-            var itemsToSell = bin.Where(IsItemShippable).ToList();
-
-            // Reset the record of what was sold so the shipping summary only
-            // ever shows items sold this particular night.
-            this.lastSoldItems.Clear();
-
-            if (itemsToSell.Count == 0)
-                return;
-
-            int totalEarned = 0;
-            var summary = new Dictionary<string, (int Count, int Gold)>();
-
-            foreach (var item in itemsToSell)
-            {
-                int sellPrice = GetSellPrice(item);
-                totalEarned += sellPrice;
-                bin.Remove(item);
-
-                this.lastSoldItems.Add(new KeyValuePair<Item, int>(item, sellPrice));
-
-                string category = GetCategoryName(item);
-                summary.TryGetValue(category, out var stats);
-                summary[category] = (stats.Count + 1, stats.Gold + sellPrice);
-
-                if (this.Config.VerboseLogging)
-                    this.Monitor.Log($"Sold '{item.DisplayName}' ({category}) for {sellPrice}g.", LogLevel.Info);
-            }
-
-            if (totalEarned > 0)
-            {
-                Game1.player.Money += totalEarned;
-
-                var parts = summary.Select(kv => $"{kv.Key}: {kv.Value.Count} sold for {kv.Value.Gold}g");
-                this.Monitor.Log(
-                    $"Shipping sales — {string.Join(", ", parts)}. Total: +{totalEarned}g.",
-                    LogLevel.Info);
-            }
-        }
 
         private static string GetCategoryName(Item item) => item switch
         {
@@ -392,47 +339,85 @@ namespace WeaponShipping
         }
 
         // ── Vanilla end-of-day shipping summary integration ───────
-        // The items we sold tonight were removed from the bin before vanilla could
-        // process them, so they never reach the summary on their own. Re-insert
-        // them into the existing "Misc" (other) category exactly the way the game
-        // tracks any other shipped item, so the screen still looks completely vanilla.
-        private void InjectSoldItemsIntoSummary(ShippingMenu menu)
+        // Weapons and gear are shipped by the vanilla night routine just like any
+        // other bin item: they already land in the summary's "Misc" (other) category,
+        // but priced at their (usually negligible) vanilla sell value. Here we bump
+        // each one up to our custom price and pay the player the difference, so the
+        // screen stays completely vanilla while the gold matches our pricing.
+        private void AdjustShippingSummary(ShippingMenu menu)
         {
-            if (this.lastSoldItems.Count == 0)
-                return;
-
             try
             {
                 const BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance;
                 Type type = typeof(ShippingMenu);
 
-                var categoryItems     = (List<List<Item>>)type.GetField("categoryItems", flags)!.GetValue(menu)!;
-                var categoryTotals    = (List<int>)type.GetField("categoryTotals", flags)!.GetValue(menu)!;
-                var itemValues        = (Dictionary<Item, int>)type.GetField("itemValues", flags)!.GetValue(menu)!;
-                var singleItemValues  = (Dictionary<Item, int>)type.GetField("singleItemValues", flags)!.GetValue(menu)!;
+                var categoryItems    = (List<List<Item>>)type.GetField("categoryItems", flags)!.GetValue(menu)!;
+                var categoryTotals   = (List<int>)type.GetField("categoryTotals", flags)!.GetValue(menu)!;
+                var itemValues       = (Dictionary<Item, int>)type.GetField("itemValues", flags)!.GetValue(menu)!;
+                var singleItemValues = (Dictionary<Item, int>)type.GetField("singleItemValues", flags)!.GetValue(menu)!;
+                var categoryDials    = (List<MoneyDial>)type.GetField("categoryDials", flags)!.GetValue(menu)!;
 
-                int other = ShippingMenu.other_category;
                 int total = ShippingMenu.total_category;
+                int totalDelta = 0;
+                var summary = new Dictionary<string, (int Count, int Gold)>();
+                var touchedCategories = new HashSet<int>();
 
-                foreach (var sold in this.lastSoldItems)
+                // Walk the real categories (everything except the combined "total" view)
+                // so each item is only counted once.
+                for (int cat = 0; cat < total; cat++)
                 {
-                    Item item = sold.Key;
-                    int price = sold.Value;
+                    foreach (Item item in categoryItems[cat])
+                    {
+                        if (!IsItemShippable(item))
+                            continue;
 
-                    categoryItems[other].Add(item);
-                    categoryTotals[other] += price;
-                    categoryTotals[total] += price;
-                    itemValues[item] = price;
-                    singleItemValues[item] = price;
+                        int vanillaValue = singleItemValues.TryGetValue(item, out int v) ? v : 0;
+                        int ourPrice = GetSellPrice(item);
+                        int newValue = System.Math.Max(ourPrice, vanillaValue);
+                        int delta = newValue - vanillaValue;
+                        if (delta <= 0)
+                            continue;
+
+                        itemValues[item] = newValue;
+                        singleItemValues[item] = newValue;
+                        categoryTotals[cat] += delta;
+                        categoryTotals[total] += delta;
+                        totalDelta += delta;
+                        touchedCategories.Add(cat);
+
+                        string category = GetCategoryName(item);
+                        summary.TryGetValue(category, out var stats);
+                        summary[category] = (stats.Count + 1, stats.Gold + newValue);
+
+                        if (this.Config.VerboseLogging)
+                            this.Monitor.Log($"Sold '{item.DisplayName}' ({category}) for {newValue}g (vanilla value {vanillaValue}g).", LogLevel.Info);
+                    }
                 }
+
+                if (totalDelta <= 0)
+                    return;
+
+                // Keep the animated money dials in sync with the corrected totals.
+                touchedCategories.Add(total);
+                foreach (int cat in touchedCategories)
+                {
+                    if (cat < categoryDials.Count)
+                    {
+                        categoryDials[cat].currentValue = categoryTotals[cat];
+                        categoryDials[cat].previousTargetValue = categoryTotals[cat];
+                    }
+                }
+
+                Game1.player.Money += totalDelta;
+
+                var parts = summary.Select(kv => $"{kv.Key}: {kv.Value.Count} sold for {kv.Value.Gold}g");
+                this.Monitor.Log(
+                    $"Shipping sales — {string.Join(", ", parts)}. Bonus over vanilla value: +{totalDelta}g.",
+                    LogLevel.Info);
             }
             catch (Exception ex)
             {
-                this.Monitor.Log($"Could not add sold gear to the shipping summary: {ex.Message}", LogLevel.Trace);
-            }
-            finally
-            {
-                this.lastSoldItems.Clear();
+                this.Monitor.Log($"Could not adjust the shipping summary: {ex.Message}", LogLevel.Trace);
             }
         }
 
