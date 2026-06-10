@@ -7,6 +7,7 @@ namespace WeaponShipping
         public bool EnableClothing { get; set; } = true;
         public bool EnableHats     { get; set; } = true;
         public bool EnableBoots    { get; set; } = true;
+        public bool EnableRings    { get; set; } = true;
 
         // Pricing
         public float PriceMultiplier  { get; set; } = 1.0f;

@@ -1,6 +1,6 @@
 # Weapon Shipping — Stardew Valley SMAPI Mod
 
-Allows you to sell **weapons, clothing, hats, and boots** by dropping them into the shipping bin. Their sell value is added to your daily earnings just like any other shipped item.
+Allows you to sell **weapons, clothing, hats, boots, and rings** by dropping them into the shipping bin. Their sell value is added to your daily earnings just like any other shipped item.
 
 ---
 
@@ -32,7 +32,7 @@ Allows you to sell **weapons, clothing, hats, and boots** by dropping them into 
 ## How to Use
 
 1. Open your shipping bin (the box near the farmhouse).
-2. Drag any weapon, clothing item, hat, or pair of boots from your inventory into the bin.
+2. Drag any weapon, clothing item, hat, pair of boots, or ring from your inventory into the bin.
 3. Go to sleep. The items appear in the vanilla end-of-day shipping summary under the **Misc** category, priced with this mod's values, and the gold is added to your earnings.
 
 The SMAPI console will also show a per-category breakdown, e.g.:
@@ -59,6 +59,11 @@ None of these item types have official sell prices in vanilla Stardew Valley. Th
 - Clothing (shirts, pants) sells for a flat **250g**.
 - Hats sell for a flat **500g** (half the Hat Mouse price).
 
+### Rings
+- Known vanilla rings use a built-in price table (e.g. Glow Ring = 300g, Iridium Band = 2,000g, Phoenix Ring = 2,500g).
+- Unknown/modded rings fall back to the ring's own vanilla price (or a flat **300g** if it has none).
+- Combined Rings are supported and sell as a single ring item.
+
 ### All categories
 - Every price is floored at the configurable **Minimum Sell Price** (default 100g) and then scaled by the **Price Multiplier** (default 1.0).
 
@@ -74,6 +79,7 @@ If you have [Generic Mod Config Menu](https://www.nexusmods.com/stardewvalley/mo
 | Enable Clothing | `true` | Sell clothing (shirts, pants) via the bin |
 | Enable Hats | `true` | Sell hats via the bin |
 | Enable Boots | `true` | Sell boots via the bin |
+| Enable Rings | `true` | Sell rings via the bin |
 | Price Multiplier | `1.0` | Scale all sell prices (0.1–10.0) |
 | Minimum Sell Price | `100` | Price floor before the multiplier is applied |
 | Damage Formula for Unknown Weapons | `true` | Use damage stats to price unlisted weapons |
@@ -132,6 +138,10 @@ The `.csproj` includes a `DeployMod` target that automatically copies the built 
 ---
 
 ## Changelog
+
+### 1.3.0
+- Added support for selling **rings** via the shipping bin, including a vanilla ring price table and a fallback for modded rings. Combined Rings are supported.
+- Added the **Enable Rings** config toggle (default on) under the Categories section.
 
 ### 1.2.0
 - Sold weapons and gear now appear in the vanilla end-of-day shipping summary, folded into the existing **Misc** category alongside other shipped items (only items actually sold that night are shown).

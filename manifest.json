@@ -1,7 +1,7 @@
 {
   "Name": "Weapon Shipping",
   "Author": "TitanmasterRy",
-  "Version": "1.2.0",
+  "Version": "1.3.0",
   "Description": "Allows you to sell weapons by placing them in the shipping bin. Their gold value is added to your daily earnings.",
   "UniqueID": "TitanmasterRy.WeaponShipping",
   "EntryDll": "WeaponShipping.dll",

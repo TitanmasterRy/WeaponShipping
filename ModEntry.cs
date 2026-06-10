@@ -84,6 +84,39 @@ namespace WeaponShipping
             { "Firewalker Boots",      600  },
         };
 
+        // Named vanilla rings; unknown/modded rings fall back to their own vanilla price
+        private static readonly Dictionary<string, int> RingPrices = new()
+        {
+            { "Small Glow Ring",       100  },
+            { "Glow Ring",             300  },
+            { "Small Magnet Ring",     100  },
+            { "Magnet Ring",           300  },
+            { "Slime Charmer Ring",   1000  },
+            { "Warrior Ring",         1000  },
+            { "Vampire Ring",         1000  },
+            { "Savage Ring",          1000  },
+            { "Ring of Yoba",         1000  },
+            { "Sturdy Ring",          1000  },
+            { "Burglar's Ring",       1500  },
+            { "Iridium Band",         2000  },
+            { "Jukebox Ring",         1500  },
+            { "Amethyst Ring",         200  },
+            { "Topaz Ring",            200  },
+            { "Aquamarine Ring",       200  },
+            { "Jade Ring",             200  },
+            { "Emerald Ring",          300  },
+            { "Ruby Ring",             300  },
+            { "Glowstone Ring",        400  },
+            { "Crabshell Ring",        750  },
+            { "Napalm Ring",          1500  },
+            { "Thorns Ring",          1500  },
+            { "Phoenix Ring",         2500  },
+            { "Hot Java Ring",        1000  },
+            { "Lucky Ring",           1000  },
+            { "Protection Ring",      1000  },
+            { "Soul Sapper Ring",     1000  },
+        };
+
         public override void Entry(IModHelper helper)
         {
             this.Config = helper.ReadConfig<ModConfig>();
@@ -141,6 +174,13 @@ namespace WeaponShipping
                 tooltip: () => "Allow boots to be sold via the shipping bin.",
                 getValue: () => this.Config.EnableBoots,
                 setValue: value => this.Config.EnableBoots = value
+            );
+            configMenu.AddBoolOption(
+                mod: this.ModManifest,
+                name: () => "Enable Rings",
+                tooltip: () => "Allow rings to be sold via the shipping bin.",
+                getValue: () => this.Config.EnableRings,
+                setValue: value => this.Config.EnableRings = value
             );
             configMenu.AddNumberOption(
                 mod: this.ModManifest,
@@ -242,7 +282,8 @@ namespace WeaponShipping
             ((item is MeleeWeapon || item is Slingshot) && this.Config.EnableWeapons)
             || (item is Clothing && this.Config.EnableClothing)
             || (item is Hat      && this.Config.EnableHats)
-            || (item is Boots    && this.Config.EnableBoots);
+            || (item is Boots    && this.Config.EnableBoots)
+            || (item is Ring     && this.Config.EnableRings);
 
         private static string GetCategoryName(Item item) => item switch
         {
@@ -251,6 +292,7 @@ namespace WeaponShipping
             Clothing _    => "Clothing",
             Hat _         => "Hats",
             Boots _       => "Boots",
+            Ring _        => "Rings",
             _             => "Other"
         };
 
@@ -263,6 +305,7 @@ namespace WeaponShipping
                 Clothing c    => 250 + ComputeSkillfulClothesBonus(c),
                 Hat _         => 500,
                 Boots b       => ComputeBootsBasePrice(b),
+                Ring r        => ComputeRingBasePrice(r),
                 _             => 0
             };
 
@@ -301,6 +344,16 @@ namespace WeaponShipping
             int defense  = boots.defenseBonus.Value;
             int immunity = boots.immunityBonus.Value;
             return defense * 200 + immunity * 150;
+        }
+
+        private static int ComputeRingBasePrice(Ring ring)
+        {
+            if (RingPrices.TryGetValue(ring.Name, out int knownPrice))
+                return knownPrice;
+
+            // Unknown/modded rings: fall back to the ring's own vanilla price, else a flat default
+            int vanillaPrice = ring.price.Value;
+            return vanillaPrice > 0 ? vanillaPrice : 300;
         }
 
         // ── Skillful Clothes Revamp integration ───────────────────
